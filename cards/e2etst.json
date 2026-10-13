@@ -1,8 +1,10 @@
 {
   "id": "e2etst",
-  "title": "Тестовая карточка (будет удалена)",
+  "title": "Тестовая карточка (будет удалена) — изменена",
   "text": "Русский текст ✓\nСсылка: https://example.com\nПочта: test@example.uz",
-  "photo": "photos/e2etst-mv6kkbq1.jpg",
-  "updated": "2026-10-13T11:00:00.216Z",
-  "created": "2026-10-13T11:00:00.216Z"
+  "photo": "photos/e2etst-mv6kr0cl.jpg",
+  "updated": "2026-10-13T11:05:12.068Z",
+  "created": "2026-10-13T11:00:00.216Z",
+  "photoW": 0,
+  "photoH": 0
 }
