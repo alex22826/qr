@@ -125,6 +125,11 @@ img { max-width: 100%; }
 .connect li { margin-bottom: 8px; }
 .connect code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
 .error { color: var(--danger); font-size: 14px; margin: 8px 0 0; }
+.step { display: flex; gap: 12px; margin-top: 18px; }
+.step > div { flex: 1; min-width: 0; }
+.step ul { padding-left: 18px; margin: 6px 0 0; }
+.step li { margin-bottom: 4px; }
+.num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-top: 8px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 15px; }
 
 /* Список карточек */
 .list-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }

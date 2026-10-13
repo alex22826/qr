@@ -33,6 +33,7 @@
     copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
     trash: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
     image: 'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z',
+    phone: 'M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z',
     more: 'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
     qr: 'M5 5h6v6H5zm2 2v2h2V7zm6-2h6v6h-6zm2 2v2h2V7zM5 13h6v6H5zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2z'
   };
@@ -223,23 +224,30 @@
   function renderConnect(errText) {
     setTop({ title: 'QR-карточки' });
     var r = GH.REPO;
+    // GitHub сам подставит из ссылки имя ключа, «без срока» и право записи — вручную остаётся выбрать репозиторий.
     var tokenUrl = 'https://github.com/settings/personal-access-tokens/new?name=qr-admin' +
       '&description=' + encodeURIComponent('Админка QR-карточек') + '&target_name=' + r.owner + '&expires_in=none&contents=write';
     view.innerHTML =
       '<div class="connect panel">' +
-        '<h2>Подключение к GitHub</h2>' +
-        '<p class="muted">Карточки и фото хранятся в репозитории <b>' + esc(r.owner + '/' + r.repo) + '</b>. ' +
-        'Чтобы сохранять их отсюда, нужен ключ доступа (токен). Вводится один раз на каждом устройстве и хранится только в этом браузере.</p>' +
-        '<ol>' +
-          '<li>Откройте <a href="' + tokenUrl + '" target="_blank" rel="noopener">создание токена на GitHub</a> (войдите как <b>' + esc(r.owner) + '</b>).</li>' +
-          '<li><b>Repository access</b> → <b>Only select repositories</b> → выберите <code>' + esc(r.repo) + '</code>.</li>' +
-          '<li><b>Permissions</b> → <b>Repository permissions</b> → <b>Contents</b> → <b>Read and write</b>.</li>' +
-          '<li><b>Expiration</b> — «No expiration» (или год), внизу <b>Generate token</b>.</li>' +
-          '<li>Скопируйте токен (начинается с <code>github_pat_</code>) и вставьте ниже.</li>' +
-        '</ol>' +
-        '<label class="field"><span>Токен</span><input class="input" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>' +
-        '<button class="btn btn-primary btn-block" id="connect">Подключить</button>' +
-        '<p class="error" id="err"' + (errText ? '' : ' hidden') + '>' + esc(errText || '') + '</p>' +
+        '<h2>Первый вход</h2>' +
+        '<p class="muted">Один раз свяжите сайт со своим GitHub — тогда добавлять карточки сможете только вы.</p>' +
+        '<div class="step"><span class="num">1</span><div>' +
+          '<a class="btn btn-primary btn-block" href="' + tokenUrl + '" target="_blank" rel="noopener">Открыть GitHub</a>' +
+          '<p class="small" style="margin:10px 0 0">Там почти всё уже заполнено. Нужно только:</p>' +
+          '<ul class="small">' +
+            '<li>в блоке <b>Repository access</b> выбрать <b>Only select repositories</b> и в списке — <b>' + esc(r.repo) + '</b>;</li>' +
+            '<li>внизу нажать зелёную <b>Generate token</b> (если переспросит — нажать ещё раз);</li>' +
+            '<li>скопировать появившийся длинный код.</li>' +
+          '</ul>' +
+        '</div></div>' +
+        '<div class="step"><span class="num">2</span><div>' +
+          '<label class="field" style="margin-bottom:10px"><span>Вставьте код сюда</span>' +
+            '<input class="input" id="token" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></label>' +
+          '<button class="btn btn-primary btn-block" id="connect">Готово</button>' +
+          '<p class="error" id="err"' + (errText ? '' : ' hidden') + '>' + esc(errText || '') + '</p>' +
+        '</div></div>' +
+        '<p class="note" style="margin:18px 0 0"><b>На телефоне ничего вводить не нужно.</b> Сначала подключите компьютер, ' +
+          'потом на нём нажмите значок телефона вверху и наведите камеру телефона на QR.</p>' +
       '</div>';
     var input = $('#token'), btn = $('#connect');
     async function submit() {
@@ -250,7 +258,7 @@
         await GH.checkToken(t);
         GH.setToken(t);
         state.loaded = false;
-        toast('Подключено');
+        toast('Готово! Телефон подключите значком телефона вверху');
         go('#/', true);
       } catch (e) {
         $('#err').hidden = false;
@@ -266,13 +274,26 @@
     var r = GH.REPO;
     view.innerHTML =
       '<div class="panel connect" style="margin-top:0">' +
+        '<h2>Подключить телефон</h2>' +
+        '<p class="muted">Откройте камеру на телефоне и наведите на код — телефон подключится сам, вводить ничего не нужно.</p>' +
+        '<button class="btn btn-primary btn-block" id="showPhoneQr">Показать QR для телефона</button>' +
+        '<div id="phoneQr" hidden>' +
+          '<div class="qr-preview" style="max-width:280px;margin:16px auto 8px">' + qrSvg(GH.PAGES_BASE + 'admin.html#connect=' + encodeURIComponent(GH.getToken()), 3) + '</div>' +
+          '<p class="error" style="text-align:center">Этот QR — ключ к вашим карточкам. Не показывайте его посторонним.</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="panel connect" style="margin-top:16px">' +
         '<p>Хранилище: <a href="https://github.com/' + esc(r.owner + '/' + r.repo) + '" target="_blank" rel="noopener">' + esc(r.owner + '/' + r.repo) + '</a></p>' +
-        '<p>Адрес для QR: <code>' + esc(GH.PAGES_BASE) + '</code></p>' +
-        '<p class="muted small">Токен сохранён только в этом браузере. Если отключить устройство, его придётся вставить заново.</p>' +
+        '<p class="muted small">Ключ сохранён только в этом браузере.</p>' +
         '<button class="btn btn-danger btn-block" id="logout">Отключить это устройство</button>' +
       '</div>';
+    $('#showPhoneQr').onclick = function () {
+      var box = $('#phoneQr');
+      box.hidden = !box.hidden;
+      this.textContent = box.hidden ? 'Показать QR для телефона' : 'Скрыть QR';
+    };
     $('#logout').onclick = function () {
-      if (!confirm('Удалить токен из этого браузера?')) return;
+      if (!confirm('Отключить это устройство? Чтобы снова добавлять карточки, его нужно будет подключить заново.')) return;
       GH.setToken(null);
       state.cards = []; state.loaded = false; state.selected.clear();
       go('#/', true);
@@ -284,7 +305,7 @@
     setTop({
       title: 'QR-карточки', fab: true,
       actions: '<button class="btn btn-ghost btn-icon" id="refresh" aria-label="Обновить">' + icon('refresh') + '</button>' +
-               '<a class="btn btn-ghost btn-icon" href="#/settings" aria-label="Настройки">' + icon('more') + '</a>'
+               '<a class="btn btn-ghost btn-icon" href="#/settings" aria-label="Подключить телефон" title="Подключить телефон">' + icon('phone') + '</a>'
     });
     $('#refresh').onclick = function () {
       view.innerHTML = loadingHtml('Обновляю…');
@@ -589,6 +610,16 @@
     var k = Math.min(1, sc.clientWidth / paper.offsetWidth);
     paper.style.transform = k < 1 ? 'scale(' + k + ')' : '';
     sc.style.height = Math.ceil(paper.offsetHeight * k) + 'px';
+  }
+
+  // Телефон подключается по QR с компьютера: admin.html#connect=<ключ>.
+  // Ключ сразу убираем из адресной строки и истории браузера.
+  var connectMatch = /^#connect=([\w%-]+)$/.exec(location.hash);
+  if (connectMatch) {
+    GH.setToken(decodeURIComponent(connectMatch[1]));
+    history.replaceState(null, '', location.pathname + location.search + '#/');
+    lastHash = location.hash;
+    toast('Телефон подключён');
   }
 
   route();
