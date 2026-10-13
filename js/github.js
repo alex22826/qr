@@ -205,6 +205,43 @@
     await commit(files, 'Удалена карточка: ' + (card.title || card.id));
   }
 
+  // ---------- очередь печати на этикеточный принтер ----------
+  // Задания — файлы jobs/<id>.json в отдельной ветке: коммиты туда не пересобирают Pages.
+  // Агент на компьютере с принтером печатает задание и удаляет файл.
+  var PRINT_BRANCH = 'print-queue';
+  function jobPath(id) { return REPO_PATH + '/contents/jobs/' + id + '.json'; }
+
+  // job: { content, caption, copies } → id задания
+  async function sendPrintJob(job) {
+    // id из времени — агент печатает задания по порядку имён
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    var body = {
+      message: 'Печать: ' + String(job.caption || job.content).slice(0, 60),
+      content: textToBase64(JSON.stringify(Object.assign({ created: new Date().toISOString() }, job), null, 2) + '\n'),
+      branch: PRINT_BRANCH
+    };
+    for (var attempt = 0; ; attempt++) {
+      try { await api(jobPath(id), { method: 'PUT', body: body }); return id; }
+      catch (e) { if (e.status === 409 && attempt < 3) continue; throw e; } // ветку в этот момент менял агент
+    }
+  }
+
+  // null — задания больше нет (напечатано или отменено)
+  async function getPrintJob(id) {
+    var f = await api(jobPath(id) + '?ref=' + PRINT_BRANCH, { allow404: true });
+    if (!f) return null;
+    var job = JSON.parse(base64ToText(f.content));
+    job.sha = f.sha;
+    return job;
+  }
+
+  async function cancelPrintJob(id) {
+    var job = await getPrintJob(id);
+    if (!job) return false;
+    await api(jobPath(id), { method: 'DELETE', body: { message: 'Отмена печати', sha: job.sha, branch: PRINT_BRANCH } });
+    return true;
+  }
+
   root.GH = {
     REPO: REPO,
     PAGES_BASE: PAGES_BASE,
@@ -215,6 +252,9 @@
     listCards: listCards,
     saveCard: saveCard,
     deleteCard: deleteCard,
+    sendPrintJob: sendPrintJob,
+    getPrintJob: getPrintJob,
+    cancelPrintJob: cancelPrintJob,
     // Адрес, который зашивается в QR: всегда публичный сайт, даже если админка открыта локально.
     cardUrl: function (id) { return PAGES_BASE + '?c=' + id; },
     // raw.githubusercontent обновляется сразу после коммита, Pages — через ~1 минуту.

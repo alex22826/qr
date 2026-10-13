@@ -192,6 +192,22 @@ img { max-width: 100%; }
 .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ===== Скан → печать на этикетку ===== */
+.scan-wrap { max-width: 560px; }
+.scan-box { position: relative; aspect-ratio: 1; background: #000; border-radius: var(--radius); overflow: hidden; }
+.scan-box video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.scan-frame { position: absolute; inset: 14%; border: 3px solid rgba(255, 255, 255, .9); border-radius: 18px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); pointer-events: none; }
+.scan-off { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; background: #000; color: #fff; text-align: center; }
+.scan-off p { margin: 0 0 12px; }
+.scan-content { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); font: 15px/1.4 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.manual { margin-top: 16px; }
+.manual summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 8px 0; }
+.manual .textarea { margin: 8px 0; }
+.center { text-align: center; }
+.status { display: flex; align-items: center; gap: 12px; min-height: 44px; font-weight: 600; }
+.status-ok { color: var(--ok); font-size: 22px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* ===== Печать ===== */
 .print-settings { display: grid; gap: 4px 16px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; }
 .print-settings .field { margin-bottom: 8px; }

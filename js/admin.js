@@ -35,7 +35,8 @@
     image: 'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z',
     phone: 'M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z',
     more: 'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
-    qr: 'M5 5h6v6H5zm2 2v2h2V7zm6-2h6v6h-6zm2 2v2h2V7zM5 13h6v6H5zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2z'
+    qr: 'M5 5h6v6H5zm2 2v2h2V7zm6-2h6v6h-6zm2 2v2h2V7zM5 13h6v6H5zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2z',
+    scan: 'M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 0h2v6h-6v-2h4v-4zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm8 0h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 0h2v2h-2v-2z'
   };
   function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"/></svg>'; }
 
@@ -304,7 +305,8 @@
   function renderList() {
     setTop({
       title: 'QR-карточки', fab: true,
-      actions: '<button class="btn btn-ghost btn-icon" id="refresh" aria-label="Обновить">' + icon('refresh') + '</button>' +
+      actions: '<a class="btn btn-ghost btn-icon" href="scan.html" aria-label="Сканировать и напечатать на этикетке" title="Сканировать → этикетка">' + icon('scan') + '</a>' +
+               '<button class="btn btn-ghost btn-icon" id="refresh" aria-label="Обновить">' + icon('refresh') + '</button>' +
                '<a class="btn btn-ghost btn-icon" href="#/settings" aria-label="Подключить телефон" title="Подключить телефон">' + icon('phone') + '</a>'
     });
     $('#refresh').onclick = function () {
