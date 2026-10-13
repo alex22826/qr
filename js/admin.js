@@ -36,7 +36,7 @@
     phone: 'M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z',
     more: 'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
     qr: 'M5 5h6v6H5zm2 2v2h2V7zm6-2h6v6h-6zm2 2v2h2V7zM5 13h6v6H5zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2z',
-    scan: 'M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 0h2v6h-6v-2h4v-4zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm8 0h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 0h2v2h-2v-2z'
+    label: 'M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z'
   };
   function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"/></svg>'; }
 
@@ -305,8 +305,7 @@
   function renderList() {
     setTop({
       title: 'QR-карточки', fab: true,
-      actions: '<a class="btn btn-ghost btn-icon" href="scan.html" aria-label="Сканировать и напечатать на этикетке" title="Сканировать → этикетка">' + icon('scan') + '</a>' +
-               '<button class="btn btn-ghost btn-icon" id="refresh" aria-label="Обновить">' + icon('refresh') + '</button>' +
+      actions: '<button class="btn btn-ghost btn-icon" id="refresh" aria-label="Обновить">' + icon('refresh') + '</button>' +
                '<a class="btn btn-ghost btn-icon" href="#/settings" aria-label="Подключить телефон" title="Подключить телефон">' + icon('phone') + '</a>'
     });
     $('#refresh').onclick = function () {
@@ -409,7 +408,8 @@
           '<div class="qr-url">' + esc(url) + '</div>' +
           (isNew ? '<p class="note">Сохраните карточку — после этого QR можно печатать.</p>' : '') +
           '<div class="side-actions">' +
-            '<a class="btn btn-primary" id="toPrint" href="#/print/' + esc(c.id) + '">' + icon('print') + 'Печать</a>' +
+            '<button class="btn btn-primary" id="toXprinter" type="button">' + icon('label') + 'Напечатать на Xprinter</button>' +
+            '<a class="btn" id="toPrint" href="#/print/' + esc(c.id) + '">' + icon('print') + 'Печать на листе A4</a>' +
             '<button class="btn" id="png" type="button">' + icon('download') + 'Скачать QR картинкой</button>' +
             '<a class="btn" id="openView" href="' + esc(url) + '" target="_blank" rel="noopener">' + icon('open') + 'Открыть как после скана</a>' +
             '<button class="btn" id="copy" type="button">' + icon('copy') + 'Копировать ссылку</button>' +
@@ -427,7 +427,7 @@
     fText.oninput = markDirty;
 
     // Для несохранённой карточки QR вёл бы в пустоту — блокируем действия.
-    ['#toPrint', '#png', '#openView', '#copy'].forEach(function (s) {
+    ['#toXprinter', '#toPrint', '#png', '#openView', '#copy'].forEach(function (s) {
       var el = $(s);
       if (isNew) { el.setAttribute('aria-disabled', 'true'); el.style.opacity = .5; el.style.pointerEvents = 'none'; }
     });
@@ -507,6 +507,34 @@
         handleError(e);
       } finally {
         busy(false);
+      }
+    };
+
+    // Этикетка с QR карточки на Xprinter: задание уходит в очередь на GitHub,
+    // печатает его агент на компьютере с принтером (E:\codeAI\xprinter\start-agent.bat).
+    $('#toXprinter').onclick = async function () {
+      var btn = this, html = btn.innerHTML;
+      var title = c.title || '';
+      var caption = title.length > 40 ? title.slice(0, 39) + '…' : title; // длинная подпись съест место у QR
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Отправляю…';
+      try {
+        var id = await GH.sendPrintJob({ content: url, caption: caption, copies: 1 });
+        btn.innerHTML = '<span class="spinner"></span>Печатаю…';
+        var res = await GH.waitPrintJob(id);
+        if (res === 'done') {
+          toast('Напечатано ✓');
+        } else if (res === 'timeout') {
+          toast('Компьютер с принтером не ответил. Проверьте, что открыто окно «Агент печати» — этикетка выйдет, как только он запустится.', true);
+        } else {
+          toast('Принтер не смог напечатать: ' + res.error, true);
+          GH.cancelPrintJob(id).catch(function () { /* агент такие задания всё равно пропускает */ });
+        }
+      } catch (e) {
+        handleError(e);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = html;
       }
     };
 

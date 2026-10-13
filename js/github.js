@@ -235,6 +235,19 @@
     return job;
   }
 
+  // Ждёт, пока агент на компьютере напечатает задание: 'done' | 'timeout' | { error }
+  async function waitPrintJob(id, timeoutMs) {
+    var until = Date.now() + (timeoutMs || 90000);
+    while (Date.now() < until) {
+      await new Promise(function (r) { setTimeout(r, 3000); });
+      var job;
+      try { job = await getPrintJob(id); } catch (e) { continue; } // связь моргнула — спросим ещё раз
+      if (job === null) return 'done';
+      if (job.status === 'error') return { error: job.error || 'неизвестная ошибка' };
+    }
+    return 'timeout';
+  }
+
   async function cancelPrintJob(id) {
     var job = await getPrintJob(id);
     if (!job) return false;
@@ -254,6 +267,7 @@
     deleteCard: deleteCard,
     sendPrintJob: sendPrintJob,
     getPrintJob: getPrintJob,
+    waitPrintJob: waitPrintJob,
     cancelPrintJob: cancelPrintJob,
     // Адрес, который зашивается в QR: всегда публичный сайт, даже если админка открыта локально.
     cardUrl: function (id) { return PAGES_BASE + '?c=' + id; },
