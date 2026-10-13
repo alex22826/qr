@@ -55,7 +55,8 @@
     var html = '<article class="v-card">';
     if (card.photo) {
       html += '<a class="v-photo" href="' + esc(card.photo) + '" target="_blank" rel="noopener">' +
-        '<img src="' + esc(card.photo) + '" alt="' + esc(card.title || '') + '" decoding="async"></a>';
+        '<img src="' + esc(card.photo) + '" alt="' + esc(card.title || '') + '"' +
+        (card.photoW && card.photoH ? ' width="' + (+card.photoW) + '" height="' + (+card.photoH) + '"' : '') + ' decoding="async"></a>';
     }
     html += '<div class="v-body">';
     if (card.title) html += '<h1 class="v-title">' + esc(card.title) + '</h1>';

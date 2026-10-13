@@ -178,9 +178,14 @@
 
     if (photo) {
       next.photo = 'photos/' + card.id + '-' + Date.now().toString(36) + '.jpg';
+      // Размеры нужны странице просмотра, чтобы заранее оставить место под фото.
+      next.photoW = photo.w || 0;
+      next.photoH = photo.h || 0;
       files.push({ path: next.photo, base64: photo.base64 });
     } else if (removePhoto) {
       next.photo = '';
+      delete next.photoW;
+      delete next.photoH;
     }
     if (oldPhoto && oldPhoto !== next.photo) files.push({ path: oldPhoto, remove: true });
 

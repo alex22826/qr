@@ -129,7 +129,8 @@
       var ctx = cv.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // прозрачный PNG → белый фон
       ctx.drawImage(img, 0, 0, w, h);
-      return await new Promise(function (res) { cv.toBlob(res, 'image/jpeg', quality); });
+      var blob = await new Promise(function (res) { cv.toBlob(res, 'image/jpeg', quality); });
+      return { blob: blob, w: w, h: h };
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -423,11 +424,12 @@
       if (!f) return;
       busy('Обрабатываю фото…');
       try {
-        var blob = await compressImage(f);
-        if (!blob) throw new Error('empty');
+        var shot = await compressImage(f);
+        if (!shot.blob) throw new Error('empty');
         if (ed.photoUrl) URL.revokeObjectURL(ed.photoUrl);
-        ed.photoBlob = blob;
-        ed.photoUrl = URL.createObjectURL(blob);
+        ed.photoBlob = shot.blob;
+        ed.photoSize = { w: shot.w, h: shot.h };
+        ed.photoUrl = URL.createObjectURL(shot.blob);
         ed.removePhoto = false;
         markDirty();
         drawPhoto();
@@ -453,7 +455,7 @@
       if (!c.title && !c.text && !hasPhoto) { toast('Добавьте заголовок, текст или фото', true); return; }
       busy(isNew ? 'Создаю карточку…' : 'Сохраняю…');
       try {
-        var photo = ed.photoBlob ? { base64: await blobToBase64(ed.photoBlob) } : null;
+        var photo = ed.photoBlob ? { base64: await blobToBase64(ed.photoBlob), w: ed.photoSize.w, h: ed.photoSize.h } : null;
         var saved = await GH.saveCard(c, photo, ed.removePhoto, isNew);
         var i = state.cards.findIndex(function (x) { return x.id === saved.id; });
         if (i >= 0) state.cards.splice(i, 1);
