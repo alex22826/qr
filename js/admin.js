@@ -36,7 +36,8 @@
     phone: 'M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z',
     more: 'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
     qr: 'M5 5h6v6H5zm2 2v2h2V7zm6-2h6v6h-6zm2 2v2h2V7zM5 13h6v6H5zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2z',
-    label: 'M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z'
+    label: 'M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z',
+    next: 'M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z'
   };
   function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"/></svg>'; }
 
@@ -73,6 +74,11 @@
   }
 
   // ---------- QR ----------
+  // По умолчанию библиотека режет символы до 1 байта: «Тест» превращается в «"5AB».
+  // UTF-8 — то, что ждут камеры телефонов; на ссылках карточек (латиница) это ничего не меняет.
+  if (window.qrcode && qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) {
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  }
   function makeQr(text) {
     var qr = qrcode(0, 'M'); // 0 — размер подбирается сам, M — ~15% восстановления
     qr.addData(text);
@@ -101,6 +107,62 @@
       for (var c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + margin) * cell, (r + margin) * cell, cell, cell);
     }
     return new Promise(function (res) { cv.toBlob(res, 'image/png'); });
+  }
+  // Матрица QR строками из 0/1 — агент на ПК печатает её картинкой ровно как в превью
+  // (команда QRCODE принтера ломается на переносах строк и неизвестно как кодирует кириллицу).
+  function qrMatrix(text) {
+    var qr = makeQr(text), n = qr.getModuleCount(), rows = [];
+    for (var r = 0; r < n; r++) {
+      var s = '';
+      for (var c = 0; c < n; c++) s += qr.isDark(r, c) ? '1' : '0';
+      rows.push(s);
+    }
+    return rows;
+  }
+
+  // Сохранить QR картинкой: на телефоне — «Поделиться» (в галерею / мессенджер), на ПК — скачать.
+  async function saveQrPng(text, baseName) {
+    var blob = await qrPng(text, 1200);
+    var name = 'qr-' + (String(baseName).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 40) || 'code') + '.png';
+    var file = new File([blob], name, { type: 'image/png' });
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: baseName || 'QR' }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // ---------- печать на Xprinter ----------
+  // Телефон не достучится до USB-принтера напрямую: задание уходит в очередь на GitHub
+  // (ветка print-queue), агент на компьютере с принтером (E:\codeAI\xprinter\start-agent.bat)
+  // забирает его, печатает и удаляет — по этому и видно «Напечатано».
+  async function printOnXprinter(btn, job) {
+    var html = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Отправляю…';
+    try {
+      var id = await GH.sendPrintJob(job);
+      btn.innerHTML = '<span class="spinner"></span>Печатаю…';
+      var res = await GH.waitPrintJob(id);
+      if (res === 'done') {
+        toast('Напечатано ✓');
+      } else if (res === 'timeout') {
+        toast('Компьютер с принтером не ответил. Проверьте, что открыто окно «Агент печати» — этикетка выйдет, как только он запустится.', true);
+      } else {
+        toast('Принтер не смог напечатать: ' + res.error, true);
+        GH.cancelPrintJob(id).catch(function () { /* агент такие задания всё равно пропускает */ });
+      }
+    } catch (e) {
+      handleError(e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = html;
+    }
   }
 
   // Короткий код карточки — он попадает в ссылку внутри QR.
@@ -184,6 +246,7 @@
     }
     if (!GH.getToken()) return renderConnect();
     if (parts[0] === 'settings') return renderSettings();
+    if (parts[0] === 'quick') return renderQuick();
     if (parts[0] === 'new') return renderEditor(null, seq);
 
     var after = { edit: function () { renderEditor(findCard(parts[1]) || 'missing', seq); },
@@ -313,11 +376,13 @@
       loadCards(true).then(renderList, handleError);
     };
 
+    var quick = '<a class="quick-entry" href="#/quick">' + icon('qr') +
+      '<span><b>Быстрый QR</b>Любой текст прямо в QR, без карточки — и сразу на Xprinter</span>' + icon('next') + '</a>';
     if (!state.cards.length) {
-      view.innerHTML = '<div class="empty"><b>Пока нет карточек</b>Нажмите «Новая карточка», добавьте текст и фото — и распечатайте QR.</div>';
+      view.innerHTML = quick + '<div class="empty"><b>Пока нет карточек</b>Нажмите «Новая карточка», добавьте текст и фото — и распечатайте QR.</div>';
       return;
     }
-    view.innerHTML =
+    view.innerHTML = quick +
       '<div class="list-tools">' +
         '<input class="input grow" id="q" type="search" placeholder="Поиск" value="' + esc(state.query) + '">' +
         '<button class="btn" id="selAll">Выбрать все</button>' +
@@ -510,50 +575,13 @@
       }
     };
 
-    // Этикетка с QR карточки на Xprinter: задание уходит в очередь на GitHub,
-    // печатает его агент на компьютере с принтером (E:\codeAI\xprinter\start-agent.bat).
-    $('#toXprinter').onclick = async function () {
-      var btn = this, html = btn.innerHTML;
+    // Этикетка с QR карточки: заголовок — подпись (длинная съела бы место у QR)
+    $('#toXprinter').onclick = function () {
       var title = c.title || '';
-      var caption = title.length > 40 ? title.slice(0, 39) + '…' : title; // длинная подпись съест место у QR
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Отправляю…';
-      try {
-        var id = await GH.sendPrintJob({ content: url, caption: caption, copies: 1 });
-        btn.innerHTML = '<span class="spinner"></span>Печатаю…';
-        var res = await GH.waitPrintJob(id);
-        if (res === 'done') {
-          toast('Напечатано ✓');
-        } else if (res === 'timeout') {
-          toast('Компьютер с принтером не ответил. Проверьте, что открыто окно «Агент печати» — этикетка выйдет, как только он запустится.', true);
-        } else {
-          toast('Принтер не смог напечатать: ' + res.error, true);
-          GH.cancelPrintJob(id).catch(function () { /* агент такие задания всё равно пропускает */ });
-        }
-      } catch (e) {
-        handleError(e);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = html;
-      }
+      printOnXprinter(this, { content: url, caption: title.length > 40 ? title.slice(0, 39) + '…' : title, copies: 1 });
     };
 
-    $('#png').onclick = async function () {
-      var blob = await qrPng(url, 1200);
-      var name = 'qr-' + ((c.title || c.id).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 40) || c.id) + '.png';
-      var file = new File([blob], name, { type: 'image/png' });
-      // На телефоне удобнее «Поделиться» (сохранить в галерею / отправить в мессенджер).
-      if (matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: c.title || 'QR' }); return; }
-        catch (e) { if (e.name === 'AbortError') return; }
-      }
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    };
+    $('#png').onclick = function () { saveQrPng(url, c.title || c.id); };
 
     $('#copy').onclick = function () {
       if (navigator.clipboard && window.isSecureContext) {
@@ -562,6 +590,73 @@
         prompt('Ссылка:', url);
       }
     };
+  }
+
+  // ---------- быстрый QR: текст прямо в коде ----------
+  // Карточка не создаётся: при сканировании телефон сразу покажет сам текст (интернет не нужен).
+  var QUICK_MAX = 400; // байт — больше агент не печатает: на этикетке QR станет слишком мелким
+
+  function renderQuick() {
+    var q = state.quick = state.quick || { text: '', caption: '', copies: 1 };
+    setTop({ title: 'Быстрый QR', back: true });
+    view.innerHTML =
+      '<div class="editor">' +
+        '<div class="panel">' +
+          '<p class="note">Текст будет зашит прямо в QR: телефон покажет его сразу при сканировании, без карточки и без интернета.</p>' +
+          '<label class="field"><span>Текст в QR</span>' +
+            '<textarea class="textarea" id="qText" maxlength="1000" style="min-height:120px" placeholder="Например: Тестовый текст. Склад 2, полка 5"></textarea></label>' +
+          '<p class="qr-url" id="qLen" style="margin-top:-8px"></p>' +
+          '<label class="field"><span>Подпись под QR на этикетке (необязательно)</span>' +
+            '<input class="input" id="qCaption" maxlength="40" placeholder="Например: Полка 5"></label>' +
+          '<label class="field"><span>Копий</span>' +
+            '<input class="input" id="qCopies" type="number" min="1" max="50" inputmode="numeric"></label>' +
+        '</div>' +
+        '<aside class="side panel">' +
+          '<div class="qr-preview" id="qPreview"></div>' +
+          '<div class="side-actions" style="margin-top:12px">' +
+            '<button class="btn btn-primary" id="qPrint" type="button">' + icon('label') + 'Напечатать на Xprinter</button>' +
+            '<button class="btn" id="qPng" type="button">' + icon('download') + 'Скачать QR картинкой</button>' +
+          '</div>' +
+        '</aside>' +
+      '</div>';
+
+    var fText = $('#qText'), fCaption = $('#qCaption'), fCopies = $('#qCopies');
+    fText.value = q.text; fCaption.value = q.caption; fCopies.value = q.copies;
+    if (!q.text) fText.focus();
+
+    function current() { return fText.value.trim(); }
+    function update() {
+      if (!fText.isConnected) return; // пока печатали, ушли на другой экран
+      q.text = fText.value; q.caption = fCaption.value;
+      var text = current(), bytes = new TextEncoder().encode(text).length, ok = false;
+      var preview = $('#qPreview'), len = $('#qLen');
+      if (!text) {
+        preview.innerHTML = '<div class="empty small" style="padding:40px 8px">Здесь появится QR</div>';
+        len.textContent = 'Напишите текст — QR построится сразу.';
+      } else {
+        try { preview.innerHTML = qrSvg(text, 2); ok = bytes <= QUICK_MAX; }
+        catch (e) { preview.innerHTML = '<div class="empty small" style="padding:40px 8px">Слишком длинный текст для QR</div>'; }
+        len.textContent = bytes > QUICK_MAX
+          ? 'Слишком длинно для этикетки: ' + bytes + ' из ' + QUICK_MAX + '. Сократите текст.'
+          : 'Длина: ' + bytes + ' из ' + QUICK_MAX + ' (русская буква считается за 2)';
+      }
+      len.style.color = bytes > QUICK_MAX ? 'var(--danger)' : '';
+      $('#qPrint').disabled = !ok;
+      $('#qPng').disabled = !text || !preview.querySelector('svg');
+    }
+    fText.oninput = update;
+    fCaption.oninput = update;
+    fCopies.oninput = function () { q.copies = this.value; };
+    update();
+
+    $('#qPrint').onclick = function () {
+      var text = current();
+      var copies = Math.max(1, Math.min(50, parseInt(fCopies.value, 10) || 1));
+      q.copies = copies; fCopies.value = copies;
+      printOnXprinter(this, { content: text, caption: fCaption.value.trim(), copies: copies, matrix: qrMatrix(text) })
+        .then(update); // вернуть кнопкам правильное состояние после печати
+    };
+    $('#qPng').onclick = function () { saveQrPng(current(), current().slice(0, 30)); };
   }
 
   // ---------- печать ----------
