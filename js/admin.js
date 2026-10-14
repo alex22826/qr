@@ -108,18 +108,6 @@
     }
     return new Promise(function (res) { cv.toBlob(res, 'image/png'); });
   }
-  // Матрица QR строками из 0/1 — агент на ПК печатает её картинкой ровно как в превью
-  // (команда QRCODE принтера ломается на переносах строк и неизвестно как кодирует кириллицу).
-  function qrMatrix(text) {
-    var qr = makeQr(text), n = qr.getModuleCount(), rows = [];
-    for (var r = 0; r < n; r++) {
-      var s = '';
-      for (var c = 0; c < n; c++) s += qr.isDark(r, c) ? '1' : '0';
-      rows.push(s);
-    }
-    return rows;
-  }
-
   // Сохранить QR картинкой: на телефоне — «Поделиться» (в галерею / мессенджер), на ПК — скачать.
   async function saveQrPng(text, baseName) {
     var blob = await qrPng(text, 1200);
@@ -246,7 +234,7 @@
     }
     if (!GH.getToken()) return renderConnect();
     if (parts[0] === 'settings') return renderSettings();
-    if (parts[0] === 'quick') return renderQuick();
+    if (parts[0] === 'quick') { location.replace('print.html'); return; } // старая ссылка на «Быстрый QR»
     if (parts[0] === 'new') return renderEditor(null, seq);
 
     var after = { edit: function () { renderEditor(findCard(parts[1]) || 'missing', seq); },
@@ -292,6 +280,9 @@
     var tokenUrl = 'https://github.com/settings/personal-access-tokens/new?name=qr-admin' +
       '&description=' + encodeURIComponent('Админка QR-карточек') + '&target_name=' + r.owner + '&expires_in=none&contents=write';
     view.innerHTML =
+      // Чтобы просто напечатать QR, вход не нужен — ведём сразу туда
+      '<a class="quick-entry connect" style="margin-bottom:14px" href="print.html">' + icon('qr') +
+        '<span><b>Только напечатать QR? Вход не нужен</b>Любой текст → QR → печать на Xprinter</span>' + icon('next') + '</a>' +
       '<div class="connect panel">' +
         '<h2>Первый вход</h2>' +
         '<p class="muted">Один раз свяжите сайт со своим GitHub — тогда добавлять карточки сможете только вы.</p>' +
@@ -376,7 +367,8 @@
       loadCards(true).then(renderList, handleError);
     };
 
-    var quick = '<a class="quick-entry" href="#/quick">' + icon('qr') +
+    // Печать QR с текстом — отдельная страница без входа (print.html), работает и на телефоне без ключа
+    var quick = '<a class="quick-entry" href="print.html">' + icon('qr') +
       '<span><b>Быстрый QR</b>Любой текст прямо в QR, без карточки — и сразу на Xprinter</span>' + icon('next') + '</a>';
     if (!state.cards.length) {
       view.innerHTML = quick + '<div class="empty"><b>Пока нет карточек</b>Нажмите «Новая карточка», добавьте текст и фото — и распечатайте QR.</div>';
@@ -590,73 +582,6 @@
         prompt('Ссылка:', url);
       }
     };
-  }
-
-  // ---------- быстрый QR: текст прямо в коде ----------
-  // Карточка не создаётся: при сканировании телефон сразу покажет сам текст (интернет не нужен).
-  var QUICK_MAX = 400; // байт — больше агент не печатает: на этикетке QR станет слишком мелким
-
-  function renderQuick() {
-    var q = state.quick = state.quick || { text: '', caption: '', copies: 1 };
-    setTop({ title: 'Быстрый QR', back: true });
-    view.innerHTML =
-      '<div class="editor">' +
-        '<div class="panel">' +
-          '<p class="note">Текст будет зашит прямо в QR: телефон покажет его сразу при сканировании, без карточки и без интернета.</p>' +
-          '<label class="field"><span>Текст в QR</span>' +
-            '<textarea class="textarea" id="qText" maxlength="1000" style="min-height:120px" placeholder="Например: Тестовый текст. Склад 2, полка 5"></textarea></label>' +
-          '<p class="qr-url" id="qLen" style="margin-top:-8px"></p>' +
-          '<label class="field"><span>Подпись под QR на этикетке (необязательно)</span>' +
-            '<input class="input" id="qCaption" maxlength="40" placeholder="Например: Полка 5"></label>' +
-          '<label class="field"><span>Копий</span>' +
-            '<input class="input" id="qCopies" type="number" min="1" max="50" inputmode="numeric"></label>' +
-        '</div>' +
-        '<aside class="side panel">' +
-          '<div class="qr-preview" id="qPreview"></div>' +
-          '<div class="side-actions" style="margin-top:12px">' +
-            '<button class="btn btn-primary" id="qPrint" type="button">' + icon('label') + 'Напечатать на Xprinter</button>' +
-            '<button class="btn" id="qPng" type="button">' + icon('download') + 'Скачать QR картинкой</button>' +
-          '</div>' +
-        '</aside>' +
-      '</div>';
-
-    var fText = $('#qText'), fCaption = $('#qCaption'), fCopies = $('#qCopies');
-    fText.value = q.text; fCaption.value = q.caption; fCopies.value = q.copies;
-    if (!q.text) fText.focus();
-
-    function current() { return fText.value.trim(); }
-    function update() {
-      if (!fText.isConnected) return; // пока печатали, ушли на другой экран
-      q.text = fText.value; q.caption = fCaption.value;
-      var text = current(), bytes = new TextEncoder().encode(text).length, ok = false;
-      var preview = $('#qPreview'), len = $('#qLen');
-      if (!text) {
-        preview.innerHTML = '<div class="empty small" style="padding:40px 8px">Здесь появится QR</div>';
-        len.textContent = 'Напишите текст — QR построится сразу.';
-      } else {
-        try { preview.innerHTML = qrSvg(text, 2); ok = bytes <= QUICK_MAX; }
-        catch (e) { preview.innerHTML = '<div class="empty small" style="padding:40px 8px">Слишком длинный текст для QR</div>'; }
-        len.textContent = bytes > QUICK_MAX
-          ? 'Слишком длинно для этикетки: ' + bytes + ' из ' + QUICK_MAX + '. Сократите текст.'
-          : 'Длина: ' + bytes + ' из ' + QUICK_MAX + ' (русская буква считается за 2)';
-      }
-      len.style.color = bytes > QUICK_MAX ? 'var(--danger)' : '';
-      $('#qPrint').disabled = !ok;
-      $('#qPng').disabled = !text || !preview.querySelector('svg');
-    }
-    fText.oninput = update;
-    fCaption.oninput = update;
-    fCopies.oninput = function () { q.copies = this.value; };
-    update();
-
-    $('#qPrint').onclick = function () {
-      var text = current();
-      var copies = Math.max(1, Math.min(50, parseInt(fCopies.value, 10) || 1));
-      q.copies = copies; fCopies.value = copies;
-      printOnXprinter(this, { content: text, caption: fCaption.value.trim(), copies: copies, matrix: qrMatrix(text) })
-        .then(update); // вернуть кнопкам правильное состояние после печати
-    };
-    $('#qPng').onclick = function () { saveQrPng(current(), current().slice(0, 30)); };
   }
 
   // ---------- печать ----------
